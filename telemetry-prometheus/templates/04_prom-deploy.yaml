@@ -5,6 +5,8 @@ metadata:
   labels:
     app: {{ .Chart.Name }}
 spec:
+  strategy:
+    type: Recreate # Recreate the pods on update due to lock on data
   replicas: {{ .Values.prometheus.replicaCount }}
   selector:
     matchLabels:
@@ -32,6 +34,9 @@ spec:
             - mountPath: /etc/prometheus
               name: prometheus-config
               readOnly: true
+            - mountPath: /etc/prometheus/rules
+              name: prometheus-rules
+              readOnly: true
           resources:
             requests:
               memory: {{ .Values.prometheus.resources.requests.memory }}       # Le conteneur demande au moins 1 Go de RAM
@@ -43,10 +48,11 @@ spec:
 
       volumes:  # ❗️ La section volumes doit être DANS spec.template.spec
         - name: {{ .Values.prometheus.persistence.name }}
-        #   persistentVolumeClaim:
-        #     claimName: {{ .Values.prometheus.persistence.name }}
-          emptyDir: {}
-
+          persistentVolumeClaim:
+            claimName: {{ .Values.prometheus.persistence.name }}
         - name: prometheus-config
           configMap:
             name: {{ include "mychart.fullname" . }}-config
+        - name: prometheus-rules
+          configMap:
+            name: {{ include "mychart.fullname" . }}-rules
