@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.prometheus.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        enabled: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: {{ .Chart.Name }}
+          args: {{ toYaml .Values.prometheus.args | nindent 12 }}
+          image: "{{ .Values.prometheus.image }}:v{{ .Chart.AppVersion }}"  # L'image du service {{ .Chart.Name }}
+          ports:
+            - containerPort: {{ .Values.prometheus.services.prometheus.port }}
+          volumeMounts:
+            - mountPath: /data
+              name: {{ .Values.prometheus.persistence.name}}
+              readOnly: false  # Mount en lecture seule
+            - mountPath: /etc/prometheus
+              name: prometheus-config
+              readOnly: true
+          resources:
+            requests:
+              memory: {{ .Values.prometheus.resources.requests.memory }}       # Le conteneur demande au moins 1 Go de RAM
+              cpu: {{ .Values.prometheus.resources.requests.cpu }}         # Le conteneur demande 0.5 vCPU (un demi processeur)
+            limits:
+              memory: {{ .Values.prometheus.resources.limits.memory }}        # Le conteneur ne pourra pas utiliser plus de 2 Go de RAM
+              cpu: {{ .Values.prometheus.resources.limits.cpu }}
+      restartPolicy: Always
+
+      volumes:  # ❗️ La section volumes doit être DANS spec.template.spec
+        - name: {{ .Values.prometheus.persistence.name }}
+        #   persistentVolumeClaim:
+        #     claimName: {{ .Values.prometheus.persistence.name }}
+          emptyDir: {}
+
+        - name: prometheus-config
+          configMap:
+            name: {{ include "mychart.fullname" . }}-config
