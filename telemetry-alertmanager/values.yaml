@@ -1,123 +1,143 @@
-# Default values for telemetry-alertmanager.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+alertmanager:
+  replicaCount: 1
+  image: "prom/alertmanager"
+  services:
+    alertmanager:
+      type: ClusterIP
+      port: 9093
+  resources:
+      requests:
+        memory: "256M"       # Le conteneur demande au moins 1 Go de RAM
+        cpu: "500m"         # Le conteneur demande 0.5 vCPU (un demi processeur)
+      limits:
+        memory: "512M"       # Le conteneur ne pourra pas utiliser plus de 2 Go de RAM
+        cpu: "500m"            # Le conteneur ne pourra pas utiliser plus de 1 vCPU (un processeur complet)
+  args:
+    - "--config.file=/etc/alertmanager/alertmanager.yml"
+  config: |
+    ---
+    global:
+      # The smarthost and SMTP sender used for mail notifications.
+      smtp_smarthost: 'localhost:25'
+      smtp_from: 'alertmanager@example.org'
 
-# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
-replicaCount: 1
+    # The root route on which each incoming alert enters.
+    route:
+      # The root route must not have any matchers as it is the entry point for
+      # all alerts. It needs to have a receiver configured so alerts that do not
+      # match any of the sub-routes are sent to someone.
+      receiver: 'team-X-mails'
 
-# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
-image:
-  repository: nginx
-  # This sets the pull policy for images.
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+      # The labels by which incoming alerts are grouped together. For example,
+      # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
+      # be batched into a single group.
+      #
+      # To aggregate by all possible labels use '...' as the sole label name.
+      # This effectively disables aggregation entirely, passing through all
+      # alerts as-is. This is unlikely to be what you want, unless you have
+      # a very low alert volume or your upstream notification system performs
+      # its own grouping. Example: group_by: [...]
+      group_by: ['alertname', 'cluster']
 
-# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
-imagePullSecrets: []
-# This is to override the chart name.
-nameOverride: ""
-fullnameOverride: ""
+      # When a new group of alerts is created by an incoming alert, wait at
+      # least 'group_wait' to send the initial notification.
+      # This way ensures that you get multiple alerts for the same group that start
+      # firing shortly after another are batched together on the first
+      # notification.
+      group_wait: 30s
 
-# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
-serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Automatically mount a ServiceAccount's API credentials?
-  automount: true
-  # Annotations to add to the service account
-  annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
-  name: ""
+      # When the first notification was sent, wait 'group_interval' to send a batch
+      # of new alerts that started firing for that group.
+      group_interval: 5m
 
-# This is for setting Kubernetes Annotations to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-podAnnotations: {}
-# This is for setting Kubernetes Labels to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
-podLabels: {}
+      # If an alert has successfully been sent, wait 'repeat_interval' to
+      # resend them.
+      repeat_interval: 3h
 
-podSecurityContext: {}
-  # fsGroup: 2000
+      # All the above attributes are inherited by all child routes and can
+      # overwritten on each.
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+      # The child route trees.
+      routes:
+      # This route performs a regular expression match on alert labels to
+      # catch alerts that are related to a list of services.
+      - matchers:
+        - service=~"^(foo1|foo2|baz)$"
+        receiver: team-X-mails
 
-# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
-service:
-  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
-  type: ClusterIP
-  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: 80
+        # The service has a sub-route for critical alerts, any alerts
+        # that do not match, i.e. severity != critical, fall-back to the
+        # parent node and are sent to 'team-X-mails'
+        routes:
+        - matchers:
+          - severity="critical"
+          receiver: team-X-pager
 
-# This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-  hosts:
-    - host: chart-example.local
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
-  tls: []
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
+      - matchers:
+        - service="files"
+        receiver: team-Y-mails
 
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+        routes:
+        - matchers:
+          - severity="critical"
+          receiver: team-Y-pager
 
-# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-livenessProbe:
-  httpGet:
-    path: /
-    port: http
-readinessProbe:
-  httpGet:
-    path: /
-    port: http
+      # This route handles all alerts coming from a database service. If there's
+      # no team to handle it, it defaults to the DB team.
+      - matchers:
+        - service="database"
 
-# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 100
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
+        receiver: team-DB-pager
+        # Also group alerts by affected database.
+        group_by: [alertname, cluster, database]
 
-# Additional volumes on the output Deployment definition.
-volumes: []
-# - name: foo
-#   secret:
-#     secretName: mysecret
-#     optional: false
+        routes:
+        - matchers:
+          - owner="team-X"
+          receiver: team-X-pager
 
-# Additional volumeMounts on the output Deployment definition.
-volumeMounts: []
-# - name: foo
-#   mountPath: "/etc/foo"
-#   readOnly: true
+        - matchers:
+          - owner="team-Y"
+          receiver: team-Y-pager
 
-nodeSelector: {}
 
-tolerations: []
+    # Inhibition rules allow to mute a set of alerts given that another alert is
+    # firing.
+    # We use this to mute any warning-level notifications if the same alert is
+    # already critical.
+    inhibit_rules:
+    - source_matchers:
+        - severity="critical"
+      target_matchers:
+        - severity="warning"
+      # Apply inhibition if the alertname is the same.
+      # CAUTION:
+      #   If all label names listed in `equal` are missing
+      #   from both the source and target alerts,
+      #   the inhibition rule will apply!
+      equal: ['alertname']
 
-affinity: {}
+
+    receivers:
+    - name: 'team-X-mails'
+      email_configs:
+      - to: 'team-X+alerts@example.org, team-Y+alerts@example.org'
+
+    - name: 'team-X-pager'
+      email_configs:
+      - to: 'team-X+alerts-critical@example.org'
+      pagerduty_configs:
+      - routing_key: <team-X-key>
+
+    - name: 'team-Y-mails'
+      email_configs:
+      - to: 'team-Y+alerts@example.org'
+
+    - name: 'team-Y-pager'
+      pagerduty_configs:
+      - routing_key: <team-Y-key>
+
+    - name: 'team-DB-pager'
+      pagerduty_configs:
+      - routing_key: <team-DB-key>
+

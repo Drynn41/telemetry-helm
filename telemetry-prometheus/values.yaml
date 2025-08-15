@@ -35,7 +35,7 @@ prometheus:
       alertmanagers:
         - static_configs:
             - targets:
-              # - alertmanager:9093
+              - alertmanager-internal.telemetry.svc.cluster.local:9093
 
     # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
     rule_files:
