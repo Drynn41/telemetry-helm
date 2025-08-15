@@ -17,7 +17,7 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           args: {{ toYaml .Values.alertmanager.args | nindent 12 }}
-          image: "{{ .Values.alertmanager.image }}:v{{ .Chart.AppVersion }}"  # L'image du service {{ .Chart.Name }}
+          image: "{{ .Values.alertmanager.image }}:v{{ .Chart.AppVersion }}"
           ports:
             - containerPort: {{ .Values.alertmanager.services.alertmanager.port }}
           volumeMounts:
@@ -26,14 +26,67 @@ spec:
               readOnly: true
           resources:
             requests:
-              memory: {{ .Values.alertmanager.resources.requests.memory }}       # Le conteneur demande au moins 1 Go de RAM
-              cpu: {{ .Values.alertmanager.resources.requests.cpu }}         # Le conteneur demande 0.5 vCPU (un demi processeur)
+              memory: {{ .Values.alertmanager.resources.requests.memory }}
+              cpu: {{ .Values.alertmanager.resources.requests.cpu }}
             limits:
-              memory: {{ .Values.alertmanager.resources.limits.memory }}        # Le conteneur ne pourra pas utiliser plus de 2 Go de RAM
+              memory: {{ .Values.alertmanager.resources.limits.memory }}
               cpu: {{ .Values.alertmanager.resources.limits.cpu }}
       restartPolicy: Always
-
-      volumes:  # ❗️ La section volumes doit être DANS spec.template.spec
+      volumes:
         - name: alertmanager-config
           configMap:
             name: {{ include "mychart.fullname" . }}-config
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discord-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discord-proxy
+  template:
+    metadata:
+      labels:
+        app: discord-proxy
+    spec:
+      volumes:
+        - name: app-volume
+          emptyDir: {}
+        - name: config-volume
+          configMap:
+            name: discord-proxy-config
+      initContainers:
+        - name: install-deps
+          image: python:3.11
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install flask requests -t /app/site-packages
+          volumeMounts:
+            - name: app-volume
+              mountPath: /app
+      containers:
+        - name: discord-proxy
+          image: python:3.11
+          command: ["python", "/app/webhook.py"]
+          env:
+            - name: DISCORD_WEBHOOK_URL
+              value: "{{ .Values.discordproxy.discordWebhookUrl }}"
+            - name: PYTHONPATH
+              value: /app/site-packages
+          volumeMounts:
+            - name: app-volume
+              mountPath: /app
+            - name: config-volume
+              mountPath: /app/webhook.py
+              subPath: webhook.py
+          resources:
+            requests:
+              ephemeral-storage: "50Mi"
+            limits:
+              ephemeral-storage: "100Mi"
