@@ -56,15 +56,108 @@ prometheus:
           # The label name is added as a label `label_name=<label_value>` to any timeseries scraped from this config.
             labels:
               app: "prometheus"
+      - job_name: 'vm_node_exporter'
+        file_sd_configs:
+          - files:
+              - /etc/prometheus/file_sd/targets.json
+            refresh_interval: 30s
+
   rules: |-
     groups:
       - name: baseOS
+        interval: 30s   # Fréquence d'évaluation des règles
         rules:
-          - alert: HighCPUUsage
-            expr: sum(rate(container_cpu_usage_seconds_total[5m])) by (instance) > 0.8
+          - alert: HighCPULoad
+            expr: avg_over_time(node_load15[5m]) > 1
             for: 5m
             labels:
               severity: critical
+              type: cpu
             annotations:
-              summary: "High CPU usage detected"
-              description: "CPU usage is above 80% for more than 5 minutes."
+              summary: "High CPU avg15 detected on {{ $labels.instance }}"
+              description: "CPU avg15 on {{ $labels.instance }} is above 1 for more than 5 minutes."
+
+          - alert: LowCPUIdle
+            expr: 100 * (1 - sum by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) / sum by (instance) (rate(node_cpu_seconds_total[5m]))) > 80
+            for: 5m
+            labels:
+              severity: critical
+              type: cpu
+            annotations:
+              summary: "CPU idle is under 20% on {{ $labels.instance }}"
+              description: "CPU idle on {{ $labels.instance }} is above 80% for more than 5 minutes."
+
+          - alert: HightCPUWait
+            expr: 100 * (rate(node_cpu_seconds_total{mode="iowait"}[5m]) / sum by (instance, cpu) (rate(node_cpu_seconds_total[5m]))) > 20
+            for: 5m
+            labels:
+              severity: critical
+              type: cpu
+            annotations:
+              summary: "CPU Wait time is above 20% on {{ $labels.instance }}"
+              description: "CPU Wait time on {{ $labels.instance }} is above 20% for more than 5 minutes."
+
+          - alert: HightHDDLatency
+            expr: rate(node_disk_read_time_seconds_total[5m]) > 1
+            for: 5m
+            labels:
+              severity: critical
+              type: disk
+            annotations:
+              summary: "Disk Read Latency {{ $labels.device }} {{ $labels.device }} on {{ $labels.instance }} is too high"
+              description: "Disk Read Latency {{ $labels.device }} on {{ $labels.instance }} is above 1 second for more than 5 minutes."
+
+          - alert: HighDiskReadIO
+            expr: node_disk_io_now{device!~"^(loop|ram|fd).*"} > 10
+            for: 2m
+            labels:
+              severity: warning
+              type: disk
+            annotations:
+              summary: "High disk read I/O on {{ $labels.device }}"
+              description: "Device {{ $labels.device }} on {{ $labels.instance }} has more than 10 I/O operations in progress (value: {{ $value }})"
+
+
+          - alert: HighDiskWriteRate
+            expr: rate(node_disk_writes_completed_total{device!~"^(loop|ram|fd).*"}[5m]) > 100
+            for: 2m
+            labels:
+              severity: warning
+              type: disk
+            annotations:
+              summary: "High disk write rate on {{ $labels.device }}"
+              description: "Device {{ $labels.device }} on {{ $labels.instance }} has a write rate above 100 ops/sec (rate: {{ $value }})"
+
+          - alert: HighDiskUsage
+            expr: (node_filesystem_size_bytes{fstype!~"^(tmpfs|overlay|squashfs)$"} - node_filesystem_free_bytes{fstype!~"^(tmpfs|overlay|squashfs)$"}) / node_filesystem_size_bytes{fstype!~"^(tmpfs|overlay|squashfs)$"} > 0.8
+            for: 5m
+            labels:
+              severity: warning
+              type: disk
+            annotations:
+              summary: "High disk usage on {{ $labels.instance }} - {{ $labels.mountpoint }} - {{ $value | humanizePercentage }}"
+              description: |
+                Disk usage on {{ $labels.instance }} - {{ $labels.mountpoint }} is above 80% for more than 5 minutes.
+                Please make sure to free up space or increase disk capacity.
+
+          - alert: HighMemoryUsage
+            expr: (node_memory_MemTotal_bytes - node_memory_MemFree_bytes - node_memory_Buffers_bytes - node_memory_Cached_bytes) / node_memory_MemTotal_bytes > 0.8
+            for: 5m
+            labels:
+              severity: warning
+              type: memory
+            annotations:
+              summary: "High memory usage on {{ $labels.instance }} - {{ $value | humanizePercentage }}"
+              description: |
+                Memory usage on {{ $labels.instance }} is above {{ $value }}% for more than 5 minutes.
+                Please consider optimizing memory usage or adding more memory to the system.
+
+          - alert: HostIsDown
+            expr: up == 0
+            for: 5m
+            labels:
+              severity: critical
+              type: host
+            annotations:
+              summary: "Host {{ $labels.instance }} is down"
+              description: "The host {{ $labels.instance }} has been down for more than 5 minutes."

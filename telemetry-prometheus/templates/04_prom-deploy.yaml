@@ -37,6 +37,9 @@ spec:
             - mountPath: /etc/prometheus/rules
               name: prometheus-rules
               readOnly: true
+            - name: vm-targets
+              mountPath: /etc/prometheus/file_sd
+              readOnly: true
           resources:
             requests:
               memory: {{ .Values.prometheus.resources.requests.memory }}       # Le conteneur demande au moins 1 Go de RAM
@@ -56,3 +59,7 @@ spec:
         - name: prometheus-rules
           configMap:
             name: {{ include "mychart.fullname" . }}-rules
+        - name: vm-targets
+          hostPath:
+            path: /tmp/prometheus/file_sd
+            type: DirectoryOrCreate

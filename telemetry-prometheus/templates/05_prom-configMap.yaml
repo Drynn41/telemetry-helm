@@ -13,4 +13,4 @@ metadata:
   name: {{ include "mychart.fullname" . }}-rules
 data:
   rules.yml: |-
-    {{ tpl .Values.prometheus.rules .| nindent 4 }}
+    {{ .Values.prometheus.rules | nindent 4 }}
