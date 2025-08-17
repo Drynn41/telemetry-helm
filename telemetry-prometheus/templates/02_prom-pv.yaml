@@ -12,4 +12,11 @@ spec:
   storageClassName: {{ .Values.prometheus.persistence.storageClass }}  # Ici, on définit la StorageClass
   hostPath:
     path: "/srv/data/telemetry/prometheus-pv"  # Le point de montage sur ton nœud pour les fichiers client
-
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+            - kubenode01.linuxtime.fr

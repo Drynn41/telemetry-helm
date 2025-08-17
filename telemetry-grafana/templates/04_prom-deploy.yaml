@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  strategy:
+    type: Recreate # Recreate the pods on update due to lock on data
+  replicas: {{ .Values.grafana.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        enabled: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.grafana.image }}:{{ .Chart.AppVersion }}"  # L'image du service {{ .Chart.Name }}
+          securityContext:
+            runAsUser: 65534       # UID de nobody
+            runAsGroup: 65534      # GID de nogroup
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: {{ .Values.grafana.services.grafana.port }}
+          volumeMounts:
+            - mountPath: /var/lib/grafana
+              name: {{ .Values.grafana.persistence.name}}
+              readOnly: false  # Mount en lecture seule
+          resources:
+            requests:
+              memory: {{ .Values.grafana.resources.requests.memory }}       # Le conteneur demande au moins 1 Go de RAM
+              cpu: {{ .Values.grafana.resources.requests.cpu }}         # Le conteneur demande 0.5 vCPU (un demi processeur)
+            limits:
+              memory: {{ .Values.grafana.resources.limits.memory }}        # Le conteneur ne pourra pas utiliser plus de 2 Go de RAM
+              cpu: {{ .Values.grafana.resources.limits.cpu }}
+      restartPolicy: Always
+
+      volumes:  # ❗️ La section volumes doit être DANS spec.template.spec
+        - name: {{ .Values.grafana.persistence.name }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.grafana.persistence.name }}

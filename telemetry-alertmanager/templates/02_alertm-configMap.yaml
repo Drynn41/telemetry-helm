@@ -26,11 +26,28 @@ data:
         alerts = data.get("alerts", [])
 
         for alert in alerts:
+            status = alert.get("status", "unknown")
             name = alert.get("labels", {}).get("alertname", "Unknown Alert")
             severity = alert.get("labels", {}).get("severity", "unknown")
-            description = alert.get("annotations", {}).get("description", "No description")
+            summary = alert.get("annotations", {}).get("summary", "")
+            description = alert.get("annotations", {}).get("description", "")
 
-            message = f"🚨 **{name}**\nSeverity: `{severity}`\n{description}"
+            if status == "firing":
+                emoji = "🚨"
+                prefix = "**ALERTE**"
+            elif status == "resolved":
+                emoji = "✅"
+                prefix = "**RÉSOLUE**"
+            else:
+                emoji = "❓"
+                prefix = "**INCONNUE**"
+
+            message = f"{emoji} {prefix}: **{name}**\nSeverity: `{severity}`"
+            if summary:
+                message += f"\n📌 Summary: {summary}"
+            if description:
+                message += f"\n📝 Description: {description}"
+
             payload = {"content": message}
 
             r = requests.post(DISCORD_WEBHOOK_URL, json=payload)
