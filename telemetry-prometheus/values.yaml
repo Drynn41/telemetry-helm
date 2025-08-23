@@ -61,9 +61,23 @@ prometheus:
           - files:
               - /etc/prometheus/file_sd/targets.json
             refresh_interval: 30s
+        relabel_configs:
+          - source_labels: [__address__]
+            regex: '([^:]+):.*'
+            target_label: hostname
+            replacement: '$1'
+            action: replace
+
 
   rules: |-
     groups:
+
+      - name: alerts_filled
+        interval: 30s
+        rules:
+        - record: ALERTS_filled
+          expr: ALERTS{alertstate="firing", severity="critical"} OR vector(0)
+
       - name: baseOS
         interval: 30s   # Fréquence d'évaluation des règles
         rules:
