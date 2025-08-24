@@ -8,7 +8,7 @@ spec:
     storage: {{ .Values.prometheus.persistence.capacity }}  # Ajuste la taille si nécessaire
   accessModes:
     - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Delete
+  persistentVolumeReclaimPolicy: Retain
   storageClassName: {{ .Values.prometheus.persistence.storageClass }}  # Ici, on définit la StorageClass
   hostPath:
     path: "/srv/data/telemetry/prometheus-pv"  # Le point de montage sur ton nœud pour les fichiers client

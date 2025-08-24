@@ -2,7 +2,7 @@ prometheus:
   persistence:
     name: prometheus-pv
     storageClass: "prometheus-storage"
-    capacity: "1Gi"  # Adjust the size as necessary
+    capacity: "4Gi"  # Adjust the size as necessary
   replicaCount: 1
   image: "prom/prometheus"
   services:
@@ -19,7 +19,7 @@ prometheus:
   args:
     - "--config.file=/etc/prometheus/prometheus.yml"
     - "--storage.tsdb.path=/data"
-    - "--storage.tsdb.retention.time=365d"
+    - "--storage.tsdb.retention.time=65d"
     - "--web.enable-lifecycle"
     - "--web.enable-remote-write-receiver"
   config: |
