@@ -60,6 +60,5 @@ spec:
           configMap:
             name: {{ include "mychart.fullname" . }}-rules
         - name: vm-targets
-          hostPath:
-            path: /tmp/prometheus/file_sd
-            type: DirectoryOrCreate
+          configMap:
+            name: {{ include "mychart.fullname" . }}-file-sd
