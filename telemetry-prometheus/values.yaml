@@ -22,6 +22,27 @@ prometheus:
     - "--storage.tsdb.retention.time=65d"
     - "--web.enable-lifecycle"
     - "--web.enable-remote-write-receiver"
+  file_sd: |
+    [
+      {
+        "targets": [ "infra01.linuxtime.fr:9100", "loadbalancer.linuxtime.fr:9100" ],
+        "labels": {
+          "job": "infra"
+        }
+      },
+      {
+        "targets": [ "kubeplane.linuxtime.fr:9100", "kubenode01.linuxtime.fr:9100","kubenode02.linuxtime.fr:9100" ],
+        "labels": {
+          "job": "kubernetes"
+        }
+      },
+      {
+        "targets": [ "homeassistant.linuxtime.fr:9100", "syno-drynn.linuxtime.fr:9100" ],
+        "labels": {
+          "job": "home"
+        }
+      }
+    ]
   config: |
     ---
     # my global config
